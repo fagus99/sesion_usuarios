@@ -2,12 +2,21 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
+from io import BytesIO
 
 st.set_page_config(page_title="Reporte Diario de Usuarios", layout="wide")
 st.title("📊 Reporte Diario de Actividad de Usuarios")
 
 # Cargar archivo Excel
 uploaded_file = st.file_uploader("Subí el archivo Excel con el resumen diario de usuarios", type=[".xlsx", ".xls"])
+
+def to_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Nuevos Usuarios')
+        writer.save()
+    processed_data = output.getvalue()
+    return processed_data
 
 if uploaded_file:
     if st.button("Iniciar procesamiento"):
@@ -65,11 +74,15 @@ if uploaded_file:
         st.write(f"% que no apostaron: {len(usuarios_sesion_sin_apuesta) / total_login:.2%}")
         st.write(f"% que no depositaron: {len(usuarios_sesion_sin_deposito) / total_login:.2%}")
 
-        st.subheader("🆕 Nuevos usuarios registrados el día del reporte: {fecha_reporte}")
+        st.subheader(f"🆕 Nuevos usuarios registrados el día del reporte: {fecha_reporte}")
         if not nuevos_usuarios.empty:
             nuevos_usuarios_info = nuevos_usuarios[['user_id', 'login', 'have_bet', 'total_release_bonus_amount', 'logged_in_day']]
             nuevos_usuarios_info.columns = ['User ID', 'Login', '¿Jugó?', 'Monto Bono Recibido', '¿Inició sesión?']
             st.dataframe(nuevos_usuarios_info)
+
+            # Opción para descargar
+            excel_data = to_excel(nuevos_usuarios_info)
+            st.download_button("📥 Descargar tabla de nuevos usuarios", data=excel_data, file_name="nuevos_usuarios.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         else:
             st.write("No se encontraron usuarios nuevos en la fecha del reporte.")
 
