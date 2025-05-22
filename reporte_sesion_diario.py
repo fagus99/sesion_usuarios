@@ -7,7 +7,6 @@ from io import BytesIO
 st.set_page_config(page_title="Reporte Diario de Usuarios", layout="wide")
 st.title("📊 Reporte Diario de Actividad de Usuarios")
 
-# Cargar archivo Excel
 uploaded_file = st.file_uploader("Subí el archivo Excel con el resumen diario de usuarios", type=[".xlsx", ".xls"])
 
 def to_excel(df):
@@ -37,19 +36,23 @@ if uploaded_file:
         df['logged_in_day'] = df['logged_in_day'].str.lower().fillna("no")
         df['have_bet'] = df['have_bet'].str.lower().fillna("no")
 
-        # Filtros básicos
+        # Filtros
         usuarios_login = df[df['logged_in_day'] == 'yes']
         usuarios_apostaron = df[df['have_bet'] == 'yes']
         usuarios_depositaron = df[df['total_deposit_amount'] > 0]
         usuarios_retiraron = df[df['total_withdrawal_amount'] < 0]
 
-        # Nuevas métricas cruzadas directamente desde df
+        # Métricas cruzadas
         login_sin_deposito = df[(df['logged_in_day'] == 'yes') & (df['total_deposit_amount'] <= 0)]
         login_sin_apuesta = df[(df['logged_in_day'] == 'yes') & (df['have_bet'] != 'yes')]
         deposito_sin_apuesta = df[(df['total_deposit_amount'] > 0) & (df['have_bet'] != 'yes')]
 
         usuarios_activos = df[df['status'].str.lower() == 'active']
         usuarios_activos_con_accion = usuarios_activos[(usuarios_activos['total_deposit_amount'] > 0) | (usuarios_activos['have_bet'] == 'yes')]
+
+        # 🔄 Nuevos cruces agregados ahora:
+        login_con_apuesta = df[(df['logged_in_day'] == 'yes') & (df['have_bet'] == 'yes')]
+        deposito_con_apuesta = df[(df['total_deposit_amount'] > 0) & (df['have_bet'] == 'yes')]
 
         progress_bar.progress(60, text="Detectando nuevos usuarios...")
 
@@ -70,13 +73,15 @@ if uploaded_file:
         st.subheader("🔀 Cruces entre acciones")
         st.write(f"Iniciaron sesión pero no depositaron: {len(login_sin_deposito)}")
         st.write(f"Iniciaron sesión pero no apostaron: {len(login_sin_apuesta)}")
+        st.write(f"Iniciaron sesión y apostaron: {len(login_con_apuesta)}")
         st.write(f"Depositantes que no jugaron: {len(deposito_sin_apuesta)}")
+        st.write(f"Depositantes que apostaron: {len(deposito_con_apuesta)}")
         st.write(f"Usuarios activos con alguna acción: {len(usuarios_activos_con_accion)}")
 
         st.subheader("📈 Porcentajes sobre usuarios que iniciaron sesión")
         total_login = len(usuarios_login)
         if total_login > 0:
-            st.write(f"% que apostaron: {(len(usuarios_apostaron[usuarios_apostaron['logged_in_day'] == 'yes']) / total_login):.2%}")
+            st.write(f"% que apostaron: {(len(login_con_apuesta) / total_login):.2%}")
             st.write(f"% que depositaron: {(len(usuarios_depositaron[usuarios_depositaron['logged_in_day'] == 'yes']) / total_login):.2%}")
             st.write(f"% que no apostaron: {len(login_sin_apuesta) / total_login:.2%}")
             st.write(f"% que no depositaron: {len(login_sin_deposito) / total_login:.2%}")
