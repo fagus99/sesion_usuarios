@@ -14,48 +14,50 @@ def to_excel(df):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Nuevos Usuarios')
-    processed_data = output.getvalue()
-    return processed_data
+    return output.getvalue()
 
 if uploaded_file:
     if st.button("Iniciar procesamiento"):
         progress_bar = st.progress(0, text="Procesando archivo...")
 
         df = pd.read_excel(uploaded_file)
-        df.columns = [col.lower().strip() for col in df.columns]  # Estandarizar nombres
+        df.columns = [col.lower().strip() for col in df.columns]
 
         progress_bar.progress(10, text="Procesando fechas...")
 
-        # Procesar fecha del ID
         df['id'] = df['id'].astype(str).str.extract(r'(\d{4}-\d{1,2}-\d{1,2})')
         df['id'] = pd.to_datetime(df['id'], errors='coerce').dt.date
         fecha_reporte = df['id'].iloc[0]
 
-        # Procesar fecha de registro
         df['registration_date'] = pd.to_datetime(df['registration_date'], errors='coerce').dt.date
 
         progress_bar.progress(30, text="Calculando métricas...")
 
-        # Métricas base
-        usuarios_login = df[df['logged_in_day'].str.lower() == 'yes']
-        usuarios_apostaron = df[df['have_bet'].str.lower() == 'yes']
+        # Normalización
+        df['logged_in_day'] = df['logged_in_day'].str.lower().fillna("no")
+        df['have_bet'] = df['have_bet'].str.lower().fillna("no")
+
+        # Filtros básicos
+        usuarios_login = df[df['logged_in_day'] == 'yes']
+        usuarios_apostaron = df[df['have_bet'] == 'yes']
         usuarios_depositaron = df[df['total_deposit_amount'] > 0]
         usuarios_retiraron = df[df['total_withdrawal_amount'] < 0]
 
-        # Cruces
-        usuarios_sesion_sin_deposito = usuarios_login[~usuarios_login['customer_id'].isin(usuarios_depositaron['customer_id'])]
-        usuarios_sesion_sin_apuesta = usuarios_login[~usuarios_login['customer_id'].isin(usuarios_apostaron['customer_id'])]
-        usuarios_depositaron_no_jugaron = usuarios_depositaron[~usuarios_depositaron['customer_id'].isin(usuarios_apostaron['customer_id'])]
+        # Nuevas métricas cruzadas directamente desde df
+        login_sin_deposito = df[(df['logged_in_day'] == 'yes') & (df['total_deposit_amount'] <= 0)]
+        login_sin_apuesta = df[(df['logged_in_day'] == 'yes') & (df['have_bet'] != 'yes')]
+        deposito_sin_apuesta = df[(df['total_deposit_amount'] > 0) & (df['have_bet'] != 'yes')]
 
         usuarios_activos = df[df['status'].str.lower() == 'active']
-        usuarios_activos_con_accion = usuarios_activos[(usuarios_activos['total_deposit_amount'] > 0) | (usuarios_activos['have_bet'].str.lower() == 'yes')]
+        usuarios_activos_con_accion = usuarios_activos[(usuarios_activos['total_deposit_amount'] > 0) | (usuarios_activos['have_bet'] == 'yes')]
 
         progress_bar.progress(60, text="Detectando nuevos usuarios...")
+
         nuevos_usuarios = df[df['registration_date'] == fecha_reporte]
-        nuevos_no_jugaron = nuevos_usuarios[nuevos_usuarios['have_bet'].str.lower() != 'yes']
+        nuevos_no_jugaron = nuevos_usuarios[nuevos_usuarios['have_bet'] != 'yes']
         nuevos_recibieron_bono = nuevos_usuarios[nuevos_usuarios['total_release_bonus_amount'] > 0]
-        nuevos_login = nuevos_usuarios[nuevos_usuarios['logged_in_day'].str.lower() == 'yes']
-        nuevos_sin_login = nuevos_usuarios[nuevos_usuarios['logged_in_day'].str.lower() != 'yes']
+        nuevos_login = nuevos_usuarios[nuevos_usuarios['logged_in_day'] == 'yes']
+        nuevos_sin_login = nuevos_usuarios[nuevos_usuarios['logged_in_day'] != 'yes']
 
         progress_bar.progress(80, text="Visualizando resultados...")
 
@@ -66,18 +68,18 @@ if uploaded_file:
         st.write(f"Usuarios que retiraron: {len(usuarios_retiraron)}")
 
         st.subheader("🔀 Cruces entre acciones")
-        st.write(f"Iniciaron sesión pero no depositaron: {len(usuarios_sesion_sin_deposito)}")
-        st.write(f"Iniciaron sesión pero no apostaron: {len(usuarios_sesion_sin_apuesta)}")
-        st.write(f"Depositantes que no jugaron: {len(usuarios_depositaron_no_jugaron)}")
+        st.write(f"Iniciaron sesión pero no depositaron: {len(login_sin_deposito)}")
+        st.write(f"Iniciaron sesión pero no apostaron: {len(login_sin_apuesta)}")
+        st.write(f"Depositantes que no jugaron: {len(deposito_sin_apuesta)}")
         st.write(f"Usuarios activos con alguna acción: {len(usuarios_activos_con_accion)}")
 
         st.subheader("📈 Porcentajes sobre usuarios que iniciaron sesión")
         total_login = len(usuarios_login)
         if total_login > 0:
-            st.write(f"% que apostaron: {len(usuarios_apostaron[usuarios_apostaron['customer_id'].isin(usuarios_login['customer_id'])]) / total_login:.2%}")
-            st.write(f"% que depositaron: {len(usuarios_depositaron[usuarios_depositaron['customer_id'].isin(usuarios_login['customer_id'])]) / total_login:.2%}")
-            st.write(f"% que no apostaron: {len(usuarios_sesion_sin_apuesta) / total_login:.2%}")
-            st.write(f"% que no depositaron: {len(usuarios_sesion_sin_deposito) / total_login:.2%}")
+            st.write(f"% que apostaron: {(len(usuarios_apostaron[usuarios_apostaron['logged_in_day'] == 'yes']) / total_login):.2%}")
+            st.write(f"% que depositaron: {(len(usuarios_depositaron[usuarios_depositaron['logged_in_day'] == 'yes']) / total_login):.2%}")
+            st.write(f"% que no apostaron: {len(login_sin_apuesta) / total_login:.2%}")
+            st.write(f"% que no depositaron: {len(login_sin_deposito) / total_login:.2%}")
         else:
             st.warning("⚠️ No se registraron sesiones de usuario.")
 
