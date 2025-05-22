@@ -24,6 +24,8 @@ if uploaded_file:
         df = pd.read_excel(uploaded_file)
         df.columns = [col.lower() for col in df.columns]  # Estandarizar nombres de columnas
 
+        df['logged_in_day'] = pd.to_numeric(df['logged_in_day'], errors='coerce').fillna(0).astype(int)
+
         progress_bar.progress(10, text="Limpiando columnas de fecha...")
         # Procesar fecha del ID
         df['id'] = df['id'].astype(str).str.extract(r'(\d{4}-\d{1,2}-\d{1,2})')
