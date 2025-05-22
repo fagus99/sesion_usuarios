@@ -110,9 +110,30 @@ if uploaded_file:
         # 🛑 Tabla de usuarios que iniciaron sesión pero NO jugaron
         st.subheader(f"🛑 Usuarios que iniciaron sesión pero NO jugaron ({len(login_sin_apuesta)})")
         if not login_sin_apuesta.empty:
-            tabla_login_no_jugaron = login_sin_apuesta[['user_id', 'login', 'total_release_bonus_amount', 'logged_in_day', 'have_bet']]
-            tabla_login_no_jugaron.columns = ['User ID', 'Login', 'Monto Bono Recibido', '¿Inició sesión?', '¿Jugó?']
+            # Asegurarse que LAST_LOGIN_DATE esté en formato datetime
+            login_sin_apuesta['last_login_date'] = pd.to_datetime(login_sin_apuesta['last_login_date'], errors='coerce')
+
+            # Filtrar logins que ocurrieron el mismo día del reporte
+            login_sin_apuesta_dia = login_sin_apuesta[
+                login_sin_apuesta['last_login_date'].dt.date == fecha_reporte
+            ].copy()
+
+            # Extraer la hora del login
+            login_sin_apuesta_dia['hora_login'] = login_sin_apuesta_dia['last_login_date'].dt.strftime('%H:%M:%S')
+
+            # Tabla final
+            tabla_login_no_jugaron = login_sin_apuesta_dia[['user_id', 'login', 'hora_login', 'total_release_bonus_amount', 'logged_in_day', 'have_bet']]
+            tabla_login_no_jugaron.columns = ['User ID', 'Login', 'Hora Login', 'Monto Bono Recibido', '¿Inició sesión?', '¿Jugó?']
+            
             st.dataframe(tabla_login_no_jugaron)
+
+            st.session_state["login_no_jugaron_excel"] = to_excel(tabla_login_no_jugaron)
+            st.download_button(
+                "📥 Descargar tabla de usuarios que iniciaron sesión pero NO jugaron",
+                data=st.session_state["login_no_jugaron_excel"],
+                file_name="usuarios_login_no_jugaron.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
             st.session_state["login_no_jugaron_excel"] = to_excel(tabla_login_no_jugaron)
             st.download_button(
