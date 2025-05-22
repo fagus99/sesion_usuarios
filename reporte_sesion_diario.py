@@ -12,7 +12,7 @@ uploaded_file = st.file_uploader("Subí el archivo Excel con el resumen diario d
 def to_excel(df):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Reporte')
+        df.to_excel(writer, index=False, sheet_name='Datos')
     return output.getvalue()
 
 if uploaded_file:
@@ -29,33 +29,29 @@ if uploaded_file:
         fecha_reporte = df['id'].iloc[0]
 
         df['registration_date'] = pd.to_datetime(df['registration_date'], errors='coerce').dt.date
+        df['last_login_date'] = pd.to_datetime(df['last_login_date'], errors='coerce')
 
         progress_bar.progress(30, text="Calculando métricas...")
 
-        # Normalización
         df['logged_in_day'] = df['logged_in_day'].str.lower().fillna("no")
         df['have_bet'] = df['have_bet'].str.lower().fillna("no")
 
-        # Filtros principales
         usuarios_login = df[df['logged_in_day'] == 'yes']
         usuarios_apostaron = df[df['have_bet'] == 'yes']
         usuarios_depositaron = df[df['total_deposit_amount'] > 0]
         usuarios_retiraron = df[df['total_withdrawal_amount'] < 0]
 
-        # Métricas cruzadas
         login_sin_deposito = df[(df['logged_in_day'] == 'yes') & (df['total_deposit_amount'] <= 0)]
         login_sin_apuesta = df[(df['logged_in_day'] == 'yes') & (df['have_bet'] != 'yes')]
         deposito_sin_apuesta = df[(df['total_deposit_amount'] > 0) & (df['have_bet'] != 'yes')]
-        login_con_apuesta = df[(df['logged_in_day'] == 'yes') & (df['have_bet'] == 'yes')]
-        deposito_con_apuesta = df[(df['total_deposit_amount'] > 0) & (df['have_bet'] == 'yes')]
 
         usuarios_activos = df[df['status'].str.lower() == 'active']
-        usuarios_activos_con_accion = usuarios_activos[(usuarios_activos['total_deposit_amount'] > 0) | (usuarios_activos['have_bet'] == 'yes')]
+        usuarios_activos_con_accion = usuarios_activos[
+            (usuarios_activos['total_deposit_amount'] > 0) | (usuarios_activos['have_bet'] == 'yes')
+        ]
 
-        # Nuevos cruces: bono y juego
-        recibieron_bono = df[df['total_release_bonus_amount'] > 0]
-        bono_y_jugaron = df[(df['total_release_bonus_amount'] > 0) & (df['have_bet'] == 'yes')]
-        bono_sin_juego = df[(df['total_release_bonus_amount'] > 0) & (df['have_bet'] != 'yes')]
+        login_con_apuesta = df[(df['logged_in_day'] == 'yes') & (df['have_bet'] == 'yes')]
+        deposito_con_apuesta = df[(df['total_deposit_amount'] > 0) & (df['have_bet'] == 'yes')]
 
         progress_bar.progress(60, text="Detectando nuevos usuarios...")
 
@@ -64,6 +60,9 @@ if uploaded_file:
         nuevos_recibieron_bono = nuevos_usuarios[nuevos_usuarios['total_release_bonus_amount'] > 0]
         nuevos_login = nuevos_usuarios[nuevos_usuarios['logged_in_day'] == 'yes']
         nuevos_sin_login = nuevos_usuarios[nuevos_usuarios['logged_in_day'] != 'yes']
+
+        recibieron_bono_jugaron = df[(df['total_release_bonus_amount'] > 0) & (df['have_bet'] == 'yes')]
+        recibieron_bono_no_jugaron = df[(df['total_release_bonus_amount'] > 0) & (df['have_bet'] != 'yes')]
 
         progress_bar.progress(80, text="Visualizando resultados...")
 
@@ -80,8 +79,8 @@ if uploaded_file:
         st.write(f"Depositantes que no jugaron: {len(deposito_sin_apuesta)}")
         st.write(f"Depositantes que apostaron: {len(deposito_con_apuesta)}")
         st.write(f"Usuarios activos con alguna acción: {len(usuarios_activos_con_accion)}")
-        st.write(f"Recibieron bono y jugaron: {len(bono_y_jugaron)}")
-        st.write(f"Recibieron bono pero no jugaron: {len(bono_sin_juego)}")
+        st.write(f"Recibieron bono y jugaron: {len(recibieron_bono_jugaron)}")
+        st.write(f"Recibieron bono y no jugaron: {len(recibieron_bono_no_jugaron)}")
 
         st.subheader("📈 Porcentajes sobre usuarios que iniciaron sesión")
         total_login = len(usuarios_login)
@@ -98,33 +97,25 @@ if uploaded_file:
             nuevos_usuarios_info = nuevos_usuarios[['user_id', 'login', 'have_bet', 'total_release_bonus_amount', 'logged_in_day']]
             nuevos_usuarios_info.columns = ['User ID', 'Login', '¿Jugó?', 'Monto Bono Recibido', '¿Inició sesión?']
             st.dataframe(nuevos_usuarios_info)
+            st.session_state["nuevos_usuarios_df"] = nuevos_usuarios_info
             st.session_state["nuevos_usuarios_excel"] = to_excel(nuevos_usuarios_info)
 
             st.download_button("📥 Descargar tabla de nuevos usuarios",
-                        data=st.session_state["nuevos_usuarios_excel"],
-                        file_name="nuevos_usuarios.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                               data=st.session_state["nuevos_usuarios_excel"],
+                               file_name="nuevos_usuarios.xlsx",
+                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         else:
             st.write("No se encontraron usuarios nuevos en la fecha del reporte.")
 
-        # 🛑 Tabla de usuarios que iniciaron sesión pero NO jugaron
-        st.subheader(f"🛑 Usuarios que iniciaron sesión pero NO jugaron ({len(login_sin_apuesta)})")
+        # Tabla con usuarios que iniciaron sesión pero no jugaron
+        st.subheader("👀 Usuarios que iniciaron sesión pero NO jugaron (solo si fue el día del reporte)")
         if not login_sin_apuesta.empty:
-            # Asegurarse que LAST_LOGIN_DATE esté en formato datetime
-            login_sin_apuesta['last_login_date'] = pd.to_datetime(login_sin_apuesta['last_login_date'], errors='coerce')
-
-            # Filtrar logins que ocurrieron el mismo día del reporte
-            login_sin_apuesta_dia = login_sin_apuesta[
-                login_sin_apuesta['last_login_date'].dt.date == fecha_reporte
-            ].copy()
-
-            # Extraer la hora del login
-            login_sin_apuesta_dia['hora_login'] = login_sin_apuesta_dia['last_login_date'].dt.strftime('%H:%M:%S')
-
-            # Tabla final
+            login_sin_apuesta = login_sin_apuesta.copy()
+            login_sin_apuesta['hora_login'] = login_sin_apuesta['last_login_date'].dt.strftime('%H:%M:%S')
+            login_sin_apuesta_dia = login_sin_apuesta[login_sin_apuesta['last_login_date'].dt.date == fecha_reporte]
             tabla_login_no_jugaron = login_sin_apuesta_dia[['user_id', 'login', 'hora_login', 'total_release_bonus_amount', 'logged_in_day', 'have_bet']]
             tabla_login_no_jugaron.columns = ['User ID', 'Login', 'Hora Login', 'Monto Bono Recibido', '¿Inició sesión?', '¿Jugó?']
-            
+
             st.dataframe(tabla_login_no_jugaron)
 
             st.session_state["login_no_jugaron_excel"] = to_excel(tabla_login_no_jugaron)
@@ -134,15 +125,5 @@ if uploaded_file:
                 file_name="usuarios_login_no_jugaron.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-
-            st.session_state["login_no_jugaron_excel"] = to_excel(tabla_login_no_jugaron)
-            st.download_button(
-                "📥 Descargar tabla de usuarios que iniciaron sesión pero NO jugaron",
-                data=st.session_state["login_no_jugaron_excel"],
-                file_name="usuarios_login_no_jugaron.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        else:
-            st.write("No se encontraron usuarios que iniciaron sesión pero no jugaron.")
 
         progress_bar.progress(100, text="✅ Proceso completado")
