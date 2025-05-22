@@ -93,9 +93,18 @@ if uploaded_file:
             nuevos_usuarios_info = nuevos_usuarios[['user_id', 'login', 'have_bet', 'total_release_bonus_amount', 'logged_in_day']]
             nuevos_usuarios_info.columns = ['User ID', 'Login', '¿Jugó?', 'Monto Bono Recibido', '¿Inició sesión?']
             st.dataframe(nuevos_usuarios_info)
+        # Guardar en session_state para evitar perder al recargar
+        st.session_state["nuevos_usuarios_df"] = nuevos_usuarios_info
+        st.session_state["nuevos_usuarios_excel"] = to_excel(nuevos_usuarios_info)
 
-            excel_data = to_excel(nuevos_usuarios_info)
-            st.download_button("📥 Descargar tabla de nuevos usuarios", data=excel_data, file_name="nuevos_usuarios.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        # Mostrar botón de descarga luego
+        if "nuevos_usuarios_excel" in st.session_state:
+            st.download_button("📥 Descargar tabla de nuevos usuarios",
+                       data=st.session_state["nuevos_usuarios_excel"],
+                       file_name="nuevos_usuarios.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+       
         else:
             st.write("No se encontraron usuarios nuevos en la fecha del reporte.")
 
