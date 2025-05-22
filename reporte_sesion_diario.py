@@ -49,6 +49,9 @@ if uploaded_file:
 
         usuarios_activos = df[df['status'].str.lower() == 'active']
         usuarios_activos_con_accion = usuarios_activos[(usuarios_activos['total_deposit_amount'] > 0) | (usuarios_activos['have_bet'] == 'yes')]
+        # Métricas adicionales de bono
+        bono_y_jugaron = df[(df['total_release_bonus_amount'] > 0) & (df['have_bet'] == 'yes')]
+        bono_y_no_jugaron = df[(df['total_release_bonus_amount'] > 0) & (df['have_bet'] != 'yes')]
 
         # 🔄 Nuevos cruces agregados ahora:
         login_con_apuesta = df[(df['logged_in_day'] == 'yes') & (df['have_bet'] == 'yes')]
@@ -77,6 +80,8 @@ if uploaded_file:
         st.write(f"Depositantes que no jugaron: {len(deposito_sin_apuesta)}")
         st.write(f"Depositantes que apostaron: {len(deposito_con_apuesta)}")
         st.write(f"Usuarios activos con alguna acción: {len(usuarios_activos_con_accion)}")
+        st.write(f"Recibieron bono y jugaron: {len(bono_y_jugaron)}")
+        st.write(f"Recibieron bono y no jugaron: {len(bono_y_no_jugaron)}")
 
         st.subheader("📈 Porcentajes sobre usuarios que iniciaron sesión")
         total_login = len(usuarios_login)
