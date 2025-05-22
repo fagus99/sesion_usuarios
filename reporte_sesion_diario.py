@@ -24,8 +24,6 @@ if uploaded_file:
         df = pd.read_excel(uploaded_file)
         df.columns = [col.lower() for col in df.columns]  # Estandarizar nombres de columnas
 
-        df['logged_in_day'] = pd.to_numeric(df['logged_in_day'], errors='coerce').fillna(0).astype(int)
-
         progress_bar.progress(10, text="Limpiando columnas de fecha...")
         # Procesar fecha del ID
         df['id'] = df['id'].astype(str).str.extract(r'(\d{4}-\d{1,2}-\d{1,2})')
@@ -35,27 +33,21 @@ if uploaded_file:
         # Procesar fecha de registro
         df['registration_date'] = pd.to_datetime(df['registration_date'], errors='coerce').dt.date
 
-        # Asegurar tipo numérico en logged_in_day
-        df['logged_in_day'] = pd.to_numeric(df['logged_in_day'], errors='coerce').fillna(0).astype(int)
+        # Procesar campo de login (yes/no a 1/0)
+        df['logged_in_day'] = df['logged_in_day'].str.lower().map({'yes': 1, 'no': 0})
 
         progress_bar.progress(30, text="Calculando métricas generales...")
         usuarios_login = df[df['logged_in_day'] > 0]
         usuarios_apostaron = df[df['have_bet'].str.lower() == 'yes']
-        df['total_deposit_amount'] = pd.to_numeric(df['total_deposit_amount'], errors='coerce').fillna(0)
         usuarios_depositaron = df[df['total_deposit_amount'] > 0]
-
-        df['total_withdrawal_amount'] = pd.to_numeric(df['total_withdrawal_amount'], errors='coerce').fillna(0)
-        usuarios_retiraron = df[df['total_withdrawal_amount'] < 0]
+        usuarios_retiraron = df[df['total_withdrawal_amount'] < 0]  # valor negativo = retiro
 
         usuarios_sesion_sin_deposito = usuarios_login[~usuarios_login['customer_id'].isin(usuarios_depositaron['customer_id'])]
         usuarios_sesion_sin_apuesta = usuarios_login[~usuarios_login['customer_id'].isin(usuarios_apostaron['customer_id'])]
         usuarios_depositaron_no_jugaron = usuarios_depositaron[~usuarios_depositaron['customer_id'].isin(usuarios_apostaron['customer_id'])]
 
         usuarios_activos = df[df['status'].str.lower() == 'active']
-        usuarios_activos_con_accion = usuarios_activos[
-            (usuarios_activos['total_deposit_amount'] > 0) | 
-            (usuarios_activos['have_bet'].str.lower() == 'yes')
-        ]
+        usuarios_activos_con_accion = usuarios_activos[(usuarios_activos['total_deposit_amount'] > 0) | (usuarios_activos['have_bet'].str.lower() == 'yes')]
 
         progress_bar.progress(60, text="Detectando usuarios nuevos...")
         nuevos_usuarios = df[df['registration_date'] == fecha_reporte]
@@ -85,7 +77,7 @@ if uploaded_file:
             st.write(f"% que no apostaron: {len(usuarios_sesion_sin_apuesta) / total_login:.2%}")
             st.write(f"% que no depositaron: {len(usuarios_sesion_sin_deposito) / total_login:.2%}")
         else:
-            st.write("⚠️ No se registraron sesiones de usuario.")
+            st.warning("⚠️ No se registraron sesiones de usuario.")
 
         st.subheader(f"🆕 Nuevos usuarios registrados el día del reporte: {fecha_reporte}")
         if not nuevos_usuarios.empty:
