@@ -114,10 +114,10 @@ if uploaded_file:
             st.write("No se encontraron usuarios nuevos en la fecha del reporte.")
 
         # Filtrar usuarios que iniciaron sesión pero NO jugaron
-usuarios_login_no_jugaron = df[(df['logged_in_day'] == 'yes') & (df['have_bet'] != 'yes')]
+    usuarios_login_no_jugaron = df[(df['logged_in_day'] == 'yes') & (df['have_bet'] != 'yes')]
 
-st.subheader(f"🛑 Usuarios que iniciaron sesión pero NO jugaron ({len(usuarios_login_no_jugaron)})")
-if not usuarios_login_no_jugaron.empty:
+    st.subheader(f"🛑 Usuarios que iniciaron sesión pero NO jugaron ({len(usuarios_login_no_jugaron)})")
+    if not usuarios_login_no_jugaron.empty:
     tabla_login_no_jugaron = usuarios_login_no_jugaron[['user_id', 'login', 'total_release_bonus_amount', 'logged_in_day', 'have_bet']]
     tabla_login_no_jugaron.columns = ['User ID', 'Login', 'Monto Bono Recibido', '¿Inició sesión?', '¿Jugó?']
     st.dataframe(tabla_login_no_jugaron)
@@ -133,7 +133,7 @@ if not usuarios_login_no_jugaron.empty:
         file_name="usuarios_login_no_jugaron.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-else:
-    st.write("No se encontraron usuarios que iniciaron sesión pero no jugaron.")
+        else:
+            st.write("No se encontraron usuarios que iniciaron sesión pero no jugaron.")
 
         progress_bar.progress(100, text="✅ Proceso completado")
