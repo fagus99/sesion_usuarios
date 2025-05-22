@@ -22,9 +22,10 @@ if uploaded_file:
         progress_bar = st.progress(0, text="Procesando archivo...")
 
         df = pd.read_excel(uploaded_file)
-        df.columns = [col.lower() for col in df.columns]  # Estandarizar nombres de columnas
+        df.columns = [col.lower().strip() for col in df.columns]  # Estandarizar nombres
 
-        progress_bar.progress(10, text="Limpiando columnas de fecha...")
+        progress_bar.progress(10, text="Procesando fechas...")
+
         # Procesar fecha del ID
         df['id'] = df['id'].astype(str).str.extract(r'(\d{4}-\d{1,2}-\d{1,2})')
         df['id'] = pd.to_datetime(df['id'], errors='coerce').dt.date
@@ -33,15 +34,15 @@ if uploaded_file:
         # Procesar fecha de registro
         df['registration_date'] = pd.to_datetime(df['registration_date'], errors='coerce').dt.date
 
-        # Procesar campo de login (yes/no a 1/0)
-        df['logged_in_day'] = df['logged_in_day'].str.lower().map({'yes': 1, 'no': 0})
+        progress_bar.progress(30, text="Calculando métricas...")
 
-        progress_bar.progress(30, text="Calculando métricas generales...")
-        usuarios_login = df[df['logged_in_day'] > 0]
+        # Métricas base
+        usuarios_login = df[df['logged_in_day'].str.lower() == 'yes']
         usuarios_apostaron = df[df['have_bet'].str.lower() == 'yes']
         usuarios_depositaron = df[df['total_deposit_amount'] > 0]
-        usuarios_retiraron = df[df['total_withdrawal_amount'] < 0]  # valor negativo = retiro
+        usuarios_retiraron = df[df['total_withdrawal_amount'] < 0]
 
+        # Cruces
         usuarios_sesion_sin_deposito = usuarios_login[~usuarios_login['customer_id'].isin(usuarios_depositaron['customer_id'])]
         usuarios_sesion_sin_apuesta = usuarios_login[~usuarios_login['customer_id'].isin(usuarios_apostaron['customer_id'])]
         usuarios_depositaron_no_jugaron = usuarios_depositaron[~usuarios_depositaron['customer_id'].isin(usuarios_apostaron['customer_id'])]
@@ -49,14 +50,15 @@ if uploaded_file:
         usuarios_activos = df[df['status'].str.lower() == 'active']
         usuarios_activos_con_accion = usuarios_activos[(usuarios_activos['total_deposit_amount'] > 0) | (usuarios_activos['have_bet'].str.lower() == 'yes')]
 
-        progress_bar.progress(60, text="Detectando usuarios nuevos...")
+        progress_bar.progress(60, text="Detectando nuevos usuarios...")
         nuevos_usuarios = df[df['registration_date'] == fecha_reporte]
         nuevos_no_jugaron = nuevos_usuarios[nuevos_usuarios['have_bet'].str.lower() != 'yes']
         nuevos_recibieron_bono = nuevos_usuarios[nuevos_usuarios['total_release_bonus_amount'] > 0]
-        nuevos_login = nuevos_usuarios[nuevos_usuarios['logged_in_day'] > 0]
-        nuevos_sin_login = nuevos_usuarios[nuevos_usuarios['logged_in_day'] == 0]
+        nuevos_login = nuevos_usuarios[nuevos_usuarios['logged_in_day'].str.lower() == 'yes']
+        nuevos_sin_login = nuevos_usuarios[nuevos_usuarios['logged_in_day'].str.lower() != 'yes']
 
-        progress_bar.progress(80, text="Preparando visualización...")
+        progress_bar.progress(80, text="Visualizando resultados...")
+
         st.subheader("📌 Métricas Generales")
         st.write(f"Usuarios que iniciaron sesión: {len(usuarios_login)}")
         st.write(f"Usuarios que apostaron: {len(usuarios_apostaron)}")
@@ -85,7 +87,6 @@ if uploaded_file:
             nuevos_usuarios_info.columns = ['User ID', 'Login', '¿Jugó?', 'Monto Bono Recibido', '¿Inició sesión?']
             st.dataframe(nuevos_usuarios_info)
 
-            # Opción para descargar
             excel_data = to_excel(nuevos_usuarios_info)
             st.download_button("📥 Descargar tabla de nuevos usuarios", data=excel_data, file_name="nuevos_usuarios.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         else:
