@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -107,8 +108,7 @@ if uploaded_file:
         else:
             st.write("No se encontraron usuarios nuevos en la fecha del reporte.")
 
-        # Tabla con usuarios que iniciaron sesión pero no jugaron
-            st.subheader("👀 Usuarios que iniciaron sesión pero NO jugaron (solo si fue el día del reporte)")
+        st.subheader("👀 Usuarios que iniciaron sesión pero NO jugaron (solo si fue el día del reporte)")
         if not login_sin_apuesta.empty:
             login_sin_apuesta = login_sin_apuesta.copy()
             login_sin_apuesta['hora_login'] = login_sin_apuesta['last_login_date'].dt.strftime('%H:%M:%S')
