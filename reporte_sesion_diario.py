@@ -108,13 +108,18 @@ if uploaded_file:
             st.write("No se encontraron usuarios nuevos en la fecha del reporte.")
 
         # Tabla con usuarios que iniciaron sesión pero no jugaron
-        st.subheader("👀 Usuarios que iniciaron sesión pero NO jugaron (solo si fue el día del reporte)")
+            st.subheader("👀 Usuarios que iniciaron sesión pero NO jugaron (solo si fue el día del reporte)")
         if not login_sin_apuesta.empty:
             login_sin_apuesta = login_sin_apuesta.copy()
             login_sin_apuesta['hora_login'] = login_sin_apuesta['last_login_date'].dt.strftime('%H:%M:%S')
             login_sin_apuesta_dia = login_sin_apuesta[login_sin_apuesta['last_login_date'].dt.date == fecha_reporte]
-            tabla_login_no_jugaron = login_sin_apuesta_dia[['user_id', 'login', 'hora_login', 'total_release_bonus_amount', 'logged_in_day', 'have_bet']]
-            tabla_login_no_jugaron.columns = ['User ID', 'Login', 'Hora Login', 'Monto Bono Recibido', '¿Inició sesión?', '¿Jugó?']
+            
+            columnas = ['user_id', 'login', 'hora_login', 'session_number', 'session_time_minutes',
+                        'total_release_bonus_amount', 'logged_in_day', 'have_bet']
+            tabla_login_no_jugaron = login_sin_apuesta_dia[columnas]
+            tabla_login_no_jugaron.columns = ['User ID', 'Login', 'Hora Login', 'Cantidad de Sesiones',
+                                              'Duración de Sesión (min)', 'Monto Bono Recibido',
+                                              '¿Inició sesión?', '¿Jugó?']
 
             st.dataframe(tabla_login_no_jugaron)
 
