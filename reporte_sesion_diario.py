@@ -37,6 +37,7 @@ if uploaded_file:
             'Bonos Liberados': 'total_release_bonus_amount',
             'Número de Sesiones': 'session_number',
             'Tiempo de Sesión (Minutos)': 'session_time_minutes',
+            'Última Recarga': 'last_deposit_date',
         }
 
         df.rename(columns=column_map, inplace=True)
@@ -50,6 +51,7 @@ if uploaded_file:
 
         df['registration_date'] = pd.to_datetime(df['registration_date'], errors='coerce').dt.date
         df['last_login_date'] = pd.to_datetime(df['last_login_date'], errors='coerce')
+        df['last_deposit_date'] = pd.to_datetime(df['last_deposit_date'], errors='coerce')
 
         progress_bar.progress(30, text="Calculando métricas...")
 
@@ -150,5 +152,42 @@ if uploaded_file:
                 file_name="usuarios_login_no_jugaron.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+
+        st.subheader("💰 Usuarios que depositaron pero NO jugaron")
+        st.caption("Ordenados por hora de depósito. Los que depositaron cerca de las 00:00 hs pueden haber jugado pasada la medianoche.")
+        if not deposito_sin_apuesta.empty:
+            dep_no_jugaron = deposito_sin_apuesta.copy()
+            dep_no_jugaron['hora_deposito'] = dep_no_jugaron['last_deposit_date'].dt.strftime('%H:%M:%S')
+            dep_no_jugaron['alerta_medianoche'] = dep_no_jugaron['last_deposit_date'].apply(
+                lambda x: '⚠️ Depósito tardío' if pd.notna(x) and x.hour >= 22 else ''
+            )
+            dep_no_jugaron = dep_no_jugaron.sort_values('last_deposit_date', ascending=False)
+
+            tabla_dep_no_jugaron = dep_no_jugaron[[
+                'user_id', 'login', 'hora_deposito', 'alerta_medianoche',
+                'total_deposit_amount', 'session_number', 'total_release_bonus_amount'
+            ]].copy()
+            tabla_dep_no_jugaron.columns = [
+                'User ID', 'Login', 'Hora Depósito', 'Alerta',
+                'Monto Depositado', 'Cant. Sesiones', 'Bono Recibido'
+            ]
+
+            st.dataframe(tabla_dep_no_jugaron, use_container_width=True)
+
+            tardios = dep_no_jugaron[dep_no_jugaron['last_deposit_date'].apply(
+                lambda x: pd.notna(x) and x.hour >= 22
+            )]
+            if len(tardios) > 0:
+                st.info(f"⚠️ {len(tardios)} usuario(s) depositaron después de las 22:00 hs — es posible que hayan jugado pasada la medianoche.")
+
+            st.session_state["dep_no_jugaron_excel"] = to_excel(tabla_dep_no_jugaron)
+            st.download_button(
+                "📥 Descargar tabla de depositantes que no jugaron",
+                data=st.session_state["dep_no_jugaron_excel"],
+                file_name="depositantes_no_jugaron.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        else:
+            st.write("Todos los usuarios que depositaron también jugaron.")
 
         progress_bar.progress(100, text="✅ Proceso completado")
