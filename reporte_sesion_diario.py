@@ -1,7 +1,5 @@
-
 import streamlit as st
 import pandas as pd
-import numpy as np
 from datetime import datetime
 from io import BytesIO
 
@@ -21,6 +19,27 @@ if uploaded_file:
         progress_bar = st.progress(0, text="Procesando archivo...")
 
         df = pd.read_excel(uploaded_file)
+
+        # Mapeo de columnas del archivo (español) a los nombres internos usados en el código
+        column_map = {
+            'ID': 'id',
+            'ID del Cliente': 'client_id',
+            'ID de Usuario': 'user_id',
+            'Nombre de Usuario': 'login',
+            'Fecha': 'fecha',
+            'Fecha de Registro': 'registration_date',
+            'Último Acceso': 'last_login_date',
+            'Acceso en el día': 'logged_in_day',
+            'Ha Apostado': 'have_bet',
+            'Estado': 'status',
+            'Total Depositado': 'total_deposit_amount',
+            'Total Retirado': 'total_withdrawal_amount',
+            'Bonos Liberados': 'total_release_bonus_amount',
+            'Número de Sesiones': 'session_number',
+            'Tiempo de Sesión (Minutos)': 'session_time_minutes',
+        }
+
+        df.rename(columns=column_map, inplace=True)
         df.columns = [col.lower().strip() for col in df.columns]
 
         progress_bar.progress(10, text="Procesando fechas...")
@@ -34,8 +53,8 @@ if uploaded_file:
 
         progress_bar.progress(30, text="Calculando métricas...")
 
-        df['logged_in_day'] = df['logged_in_day'].str.lower().fillna("no")
-        df['have_bet'] = df['have_bet'].str.lower().fillna("no")
+        df['logged_in_day'] = df['logged_in_day'].astype(str).str.lower().fillna("no")
+        df['have_bet'] = df['have_bet'].astype(str).str.lower().fillna("no")
 
         usuarios_login = df[df['logged_in_day'] == 'yes']
         usuarios_apostaron = df[df['have_bet'] == 'yes']
@@ -46,7 +65,7 @@ if uploaded_file:
         login_sin_apuesta = df[(df['logged_in_day'] == 'yes') & (df['have_bet'] != 'yes')]
         deposito_sin_apuesta = df[(df['total_deposit_amount'] > 0) & (df['have_bet'] != 'yes')]
 
-        usuarios_activos = df[df['status'].str.lower() == 'active']
+        usuarios_activos = df[df['status'].astype(str).str.upper() == 'ACTIVE']
         usuarios_activos_con_accion = usuarios_activos[
             (usuarios_activos['total_deposit_amount'] > 0) | (usuarios_activos['have_bet'] == 'yes')
         ]
@@ -96,6 +115,7 @@ if uploaded_file:
         st.subheader(f"🆕 Nuevos usuarios registrados el día del reporte: {fecha_reporte}")
         if not nuevos_usuarios.empty:
             nuevos_usuarios_info = nuevos_usuarios[['user_id', 'login', 'have_bet', 'total_release_bonus_amount', 'logged_in_day']]
+            nuevos_usuarios_info = nuevos_usuarios_info.copy()
             nuevos_usuarios_info.columns = ['User ID', 'Login', '¿Jugó?', 'Monto Bono Recibido', '¿Inició sesión?']
             st.dataframe(nuevos_usuarios_info)
             st.session_state["nuevos_usuarios_df"] = nuevos_usuarios_info
@@ -113,10 +133,10 @@ if uploaded_file:
             login_sin_apuesta = login_sin_apuesta.copy()
             login_sin_apuesta['hora_login'] = login_sin_apuesta['last_login_date'].dt.strftime('%H:%M:%S')
             login_sin_apuesta_dia = login_sin_apuesta[login_sin_apuesta['last_login_date'].dt.date == fecha_reporte]
-            
+
             columnas = ['user_id', 'login', 'hora_login', 'session_number', 'session_time_minutes',
                         'total_release_bonus_amount', 'logged_in_day', 'have_bet']
-            tabla_login_no_jugaron = login_sin_apuesta_dia[columnas]
+            tabla_login_no_jugaron = login_sin_apuesta_dia[columnas].copy()
             tabla_login_no_jugaron.columns = ['User ID', 'Login', 'Hora Login', 'Cantidad de Sesiones',
                                               'Duración de Sesión (min)', 'Monto Bono Recibido',
                                               '¿Inició sesión?', '¿Jugó?']
